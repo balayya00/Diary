@@ -110,46 +110,46 @@ main.vis{opacity:1}
 
 /*
  * ══════════════════════════════════════════════
- * THE KEY IDEA:
+ * LAYOUT STRATEGY (final, simple)
  *
- * .scroll-x   — ONE horizontal scroll container
- *               wraps col-head + ALL rows
- *               has min-width on mobile
+ * .diary-wrap — the ONE scroll container
+ *   overflow-x: auto  (scrolls whole thing on mobile)
+ *   overflow-y: visible (so vertical page scroll works)
  *
- * .entry-block — lives OUTSIDE .scroll-x
- *               contains:
- *                 .row-ref   (zero-height marker, inside .scroll-x)
- *                 .detail-wrap (full viewport width)
+ * Inside .diary-wrap:
+ *   .diary-inner — min-width forces horizontal scroll on mobile
+ *     col-head
+ *     per entry:
+ *       .row        — 5-col grid, full width of diary-inner
+ *       .dp-panel   — also full width of diary-inner
+ *                     naturally in flow, opens right below row
  *
- * On mobile, .scroll-x scrolls left/right.
- * Panels are outside it → always full width.
+ * On desktop: diary-inner = 100%, no scroll needed
+ * On mobile:  diary-inner = 580px min, whole thing scrolls
+ *             panel is INSIDE diary-inner so it scrolls too ✓
+ *             panel width = 100vw via special CSS trick ✓
  * ══════════════════════════════════════════════
  */
 
-/* Outer wrapper — clips horizontal overflow */
-.table-outer{
-  position:relative;
-  width:100%;
-}
-
-/* Single horizontal scroll container */
-.scroll-x{
+.diary-wrap{
   overflow-x:auto;
-  overflow-y:visible;       /* IMPORTANT: don't clip panels */
+  overflow-y:visible;
   -webkit-overflow-scrolling:touch;
   scrollbar-width:thin;
   scrollbar-color:var(--border2) transparent;
+  /* clip only horizontal, let vertical be normal */
+  clip-path:none;
 }
-.scroll-x::-webkit-scrollbar{height:4px}
-.scroll-x::-webkit-scrollbar-track{background:transparent}
-.scroll-x::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.diary-wrap::-webkit-scrollbar{height:4px}
+.diary-wrap::-webkit-scrollbar-track{background:transparent}
+.diary-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
-/* Inner container — has the min-width */
-.scroll-inner{
-  min-width:100%;           /* default: full width */
+.diary-inner{
+  min-width:100%;
+  width:100%;
 }
 
-/* Column header */
+/* ── Column header ── */
 .col-head{
   display:grid;
   grid-template-columns:100px 56px 1fr 90px 110px;
@@ -161,7 +161,7 @@ main.vis{opacity:1}
 .ch{font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--text-3)}
 .ch.r{text-align:right}
 
-/* Month separator — inside scroll-inner so it scrolls with rows */
+/* ── Month separator ── */
 .month-sep{
   display:flex;align-items:center;gap:12px;
   padding:24px 16px 8px;
@@ -170,7 +170,7 @@ main.vis{opacity:1}
 .ms-line{flex:1;height:1px;background:var(--border)}
 .ms-count{font-size:15px;color:var(--text-3);white-space:nowrap}
 
-/* Row — inside scroll-inner */
+/* ── Row ── */
 .row{
   display:grid;
   grid-template-columns:100px 56px 1fr 90px 110px;
@@ -181,6 +181,7 @@ main.vis{opacity:1}
   transition:background 0.14s;
   animation:rowIn 0.32s ease both;
   border-bottom:1px solid var(--border);
+  width:100%;
 }
 .row:hover,.row.expanded{background:var(--hover)}
 @keyframes rowIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
@@ -217,47 +218,58 @@ main.vis{opacity:1}
 
 /* ══════════════════════════════════════════════
    DETAIL PANEL
-   Lives OUTSIDE .scroll-x in .panels-root
-   Positioned via JS to sit below its row
-   Width = full viewport width of main
+   In normal flow inside .diary-inner
+   Width = 100% of diary-inner (scrolls with content on mobile)
+   On desktop it fills the full content width perfectly
 ══════════════════════════════════════════════ */
-.panels-root{
-  position:relative;
-  width:100%;
-}
-
-.detail-wrap{
+.dp-panel{
   display:none;
   width:100%;
   background:var(--dp-bg);
   border-top:1px solid var(--border2);
   border-bottom:1px solid var(--border2);
-  overflow:hidden;
 }
-.detail-wrap.open{
+.dp-panel.open{
   display:block;
   animation:dpSlide 0.28s cubic-bezier(0.22,1,0.36,1) both;
 }
 @keyframes dpSlide{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 
+/* ── Panel inner layout ── */
 .detail-inner{
-  display:grid;
-  grid-template-columns:140px 1fr;
-  gap:24px;
-  padding:22px 20px;
+  display:flex;
+  flex-direction:row;
+  gap:28px;
+  padding:24px 20px;
+  align-items:flex-start;
+  width:100%;
 }
+
+/* Poster — fixed width, doesn't grow */
 .dp-poster{
-  width:130px;border-radius:7px;overflow:hidden;
+  width:150px;
+  flex:0 0 150px;
+  border-radius:8px;overflow:hidden;
   background:var(--bg4);aspect-ratio:2/3;
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
 }
 .dp-poster img{width:100%;height:100%;object-fit:cover;display:block}
-.dp-poster-ph{font-size:28px;opacity:0.25}
-.dp-info{display:flex;flex-direction:column;min-width:0;width:100%}
-.dp-title-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.dp-poster-ph{font-size:32px;opacity:0.25}
+
+/* Info — takes all remaining space */
+.dp-info{
+  flex:1;
+  min-width:0;
+  display:flex;flex-direction:column;
+}
+
+.dp-title-row{
+  display:flex;align-items:baseline;flex-wrap:wrap;
+  gap:8px;margin-bottom:12px;
+}
 .dp-title{
   font-family:'Playfair Display',Georgia,serif;
-  font-style:italic;font-size:18px;font-weight:700;
+  font-style:italic;font-size:20px;font-weight:700;
   color:var(--dp-title-color);line-height:1.25;word-break:break-word;
 }
 .dp-year-badge{
@@ -271,22 +283,24 @@ main.vis{opacity:1}
   padding:2px 9px;border-radius:20px;white-space:nowrap;flex-shrink:0;
 }
 .dp-synopsis{
-  font-size:13px;color:var(--text-2);line-height:1.78;margin-bottom:16px;
+  font-size:13.5px;color:var(--text-2);line-height:1.8;margin-bottom:18px;
   text-align:justify;text-align-last:left;hyphens:auto;
-  width:100%;overflow-wrap:break-word;word-break:break-word;
+  overflow-wrap:break-word;word-break:break-word;
 }
 .dp-synopsis.empty{color:var(--text-3);font-style:italic;text-align:left}
-.dp-meta{display:flex;flex-direction:column;gap:8px}
-.dp-meta-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:12.5px}
+
+.dp-meta{display:flex;flex-direction:column;gap:9px}
+.dp-meta-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:13px}
 .dp-meta-label{
   color:var(--text-3);font-weight:700;font-size:10px;
   letter-spacing:0.9px;text-transform:uppercase;
-  white-space:nowrap;min-width:90px;flex-shrink:0;
+  white-space:nowrap;min-width:100px;flex-shrink:0;
 }
 .dp-meta-value{color:var(--text-1);line-height:1.5;overflow-wrap:break-word;word-break:break-word;min-width:0}
-.genre-list{display:flex;flex-wrap:wrap;gap:5px}
+
+.genre-list{display:flex;flex-wrap:wrap;gap:6px}
 .genre-tag{
-  font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;
+  font-size:10px;font-weight:600;padding:2px 9px;border-radius:20px;
   background:rgba(200,169,110,0.10);border:1px solid rgba(200,169,110,0.22);
   color:var(--accent);white-space:nowrap;
 }
@@ -321,8 +335,28 @@ main.vis{opacity:1}
 .t-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.5s ease infinite}
 
 /* ══════════════════════════════════════════════
-   MOBILE
+   RESPONSIVE
 ══════════════════════════════════════════════ */
+
+/* Desktop large */
+@media(min-width:1200px){
+  .col-head,.row{grid-template-columns:130px 60px 1fr 130px 140px}
+  .r-title{font-size:15px}
+}
+
+/* Desktop medium */
+@media(min-width:900px) and (max-width:1199px){
+  .col-head,.row{grid-template-columns:110px 60px 1fr 110px 120px}
+}
+
+/* Tablet */
+@media(min-width:641px) and (max-width:899px){
+  .col-head,.row{grid-template-columns:90px 52px 1fr 85px 100px}
+  .dp-poster{width:120px;flex:0 0 120px}
+  .dp-title{font-size:18px}
+}
+
+/* Mobile */
 @media(max-width:640px){
   header{height:54px;padding:0 14px}
   .logo{font-size:16px}
@@ -331,49 +365,43 @@ main.vis{opacity:1}
   .bdot{width:6px;height:6px}
   main{padding:0 0 60px}
 
-  /* Force inner content wider so it scrolls */
-  .scroll-inner{
-    min-width:560px;
+  /*
+   * Force diary-inner to be wider than screen
+   * so the whole thing scrolls horizontally as one unit.
+   * Panel inside diary-inner → scrolls with it too.
+   */
+  .diary-inner{
+    min-width:580px;
   }
 
   .col-head,.row{
     grid-template-columns:80px 46px 1fr 70px 88px;
-    gap:10px;
+    gap:10px;padding-left:14px;padding-right:14px;
   }
-  .col-head{padding:12px 14px 8px;margin-top:16px}
+  .col-head{padding-top:12px;padding-bottom:8px;margin-top:16px}
   .month-sep{padding:18px 14px 6px}
-  .row{min-height:48px;padding:10px 14px}
+  .row{min-height:48px;padding-top:10px;padding-bottom:10px}
   .r-date{font-size:11.5px}
   .r-title{font-size:13.5px}
   .r-year{font-size:11.5px}
   .stars{font-size:12px}
 
-  /* Panel stacks on mobile */
+  /* Panel on mobile — stack vertically */
   .detail-inner{
-    grid-template-columns:1fr;
-    gap:14px;padding:16px 14px;
+    flex-direction:column;
+    gap:16px;
+    padding:16px 14px;
   }
-  .dp-poster{width:110px;margin:0 auto}
+  .dp-poster{
+    width:110px;flex:none;
+    margin:0 auto;
+  }
   .dp-title{font-size:16px}
   .dp-synopsis{font-size:12.5px}
   .dp-meta-label{min-width:80px;font-size:9.5px}
   .dp-meta-row{font-size:12px}
 
   .toast{bottom:12px;right:12px;left:12px;max-width:none}
-}
-
-@media(min-width:641px) and (max-width:899px){
-  .col-head,.row{grid-template-columns:90px 52px 1fr 85px 100px}
-  .detail-inner{grid-template-columns:120px 1fr;gap:20px;padding:20px 18px}
-  .dp-poster{width:110px}
-}
-@media(min-width:900px){
-  .col-head,.row{grid-template-columns:110px 60px 1fr 110px 120px}
-}
-@media(min-width:1200px){
-  .col-head,.row{grid-template-columns:130px 60px 1fr 130px 140px}
-  .r-title{font-size:15px}
-  .dp-title{font-size:20px}
 }
 </style>
 </head>
@@ -408,35 +436,31 @@ main.vis{opacity:1}
 </header>
 
 <main id="main">
-  <div class="table-outer">
+  <!--
+    .diary-wrap  = ONE horizontal scroll container
+    .diary-inner = min-width forces scroll on mobile
+    Everything inside scrolls together as one unit
+  -->
+  <div class="diary-wrap">
+    <div class="diary-inner" id="diaryInner">
 
-    <!-- ONE scroll container for everything -->
-    <div class="scroll-x" id="scrollX">
-      <div class="scroll-inner" id="scrollInner">
-
-        <div class="col-head">
-          <span class="ch">Date</span>
-          <span class="ch">Type</span>
-          <span class="ch">Title</span>
-          <span class="ch">Released</span>
-          <span class="ch r">Rating</span>
-        </div>
-
-        <!-- Rows injected here -->
-        <div id="diary">
-          <div class="loading">
-            <div class="spin-lg"></div>
-            <div class="load-txt">Loading diary…</div>
-            <div class="load-sub">Fetching entries</div>
-          </div>
-        </div>
-
+      <div class="col-head">
+        <span class="ch">Date</span>
+        <span class="ch">Type</span>
+        <span class="ch">Title</span>
+        <span class="ch">Released</span>
+        <span class="ch r">Rating</span>
       </div>
+
+      <div id="diary">
+        <div class="loading">
+          <div class="spin-lg"></div>
+          <div class="load-txt">Loading diary…</div>
+          <div class="load-sub">Fetching entries</div>
+        </div>
+      </div>
+
     </div>
-
-    <!-- Panels injected here — outside scroll-x, full width -->
-    <div id="panelsRoot" class="panels-root"></div>
-
   </div>
 </main>
 
@@ -578,43 +602,26 @@ function buildPanel(entry){
 
 /* ══════════════════════════════════════════════
    RENDER
+   Structure inside #diary (inside .diary-inner):
+     .month-sep
+     .row          ← click to open
+     .dp-panel     ← opens right below row, in flow
+     .row
+     .dp-panel
+     ...
+   Everything in one scrollable unit on mobile.
 ══════════════════════════════════════════════ */
-let _activeRow   = null;  // currently expanded .row el
-let _activePanel = null;  // currently open .detail-wrap el
-
-function placePanel(panel, rowEl){
-  /*
-   * Get the row's bottom edge relative to .table-outer
-   * then set panel's top to that value.
-   * This puts the panel immediately below the row
-   * regardless of scroll position.
-   */
-  const tableOuter  = rowEl.closest('.table-outer') || document.querySelector('.table-outer');
-  const outerRect   = tableOuter.getBoundingClientRect();
-  const rowRect     = rowEl.getBoundingClientRect();
-
-  const topRelative = rowRect.bottom - outerRect.top + tableOuter.scrollTop;
-
-  panel.style.position = 'absolute';
-  panel.style.top      = topRelative + 'px';
-  panel.style.left     = '0';
-  panel.style.right    = '0';
-  panel.style.zIndex   = '10';
-}
+let _activeRow  = null;
+let _activePanel= null;
 
 function closeActive(){
-  if(_activeRow)   _activeRow.classList.remove('expanded');
-  if(_activePanel){
-    _activePanel.classList.remove('open');
-    _activePanel.innerHTML='';
-  }
-  _activeRow=null;
-  _activePanel=null;
+  if(_activeRow)  _activeRow.classList.remove('expanded');
+  if(_activePanel){_activePanel.classList.remove('open');_activePanel.innerHTML='';}
+  _activeRow=null;_activePanel=null;
 }
 
 function renderEntries(entries){
-  const diary      = $('diary');
-  const panelsRoot = $('panelsRoot');
+  const diary=$('diary');
 
   if(!entries.length){
     diary.innerHTML=`
@@ -634,20 +641,11 @@ function renderEntries(entries){
   }
 
   diary.innerHTML='';
-  panelsRoot.innerHTML='';
-
-  /* Make panelsRoot absolutely positioned within table-outer */
-  panelsRoot.style.position='absolute';
-  panelsRoot.style.top='0';
-  panelsRoot.style.left='0';
-  panelsRoot.style.right='0';
-  panelsRoot.style.pointerEvents='none'; /* panels get their own pointer-events */
-
-  let idx=0;
 
   for(const mk of order){
     const grp=groups.get(mk);
 
+    /* Month separator */
     const sep=document.createElement('div');
     sep.className='month-sep';
     sep.innerHTML=`
@@ -661,10 +659,9 @@ function renderEntries(entries){
       const isRew=!!e.rewatch;
       const stars=toStars(e.rating);
 
-      /* Row inside scroll-inner */
+      /* Row */
       const row=document.createElement('div');
       row.className='row';
-      row.dataset.idx=idx;
       row.innerHTML=`
         <div class="r-date">${fmtDate(e.watched_date)}</div>
         <div class="r-type-cell">
@@ -682,49 +679,28 @@ function renderEntries(entries){
             ?`<span class="stars" title="${e.rating}/5">${stars}</span>`
             :`<span class="no-rating">—</span>`}
         </div>`;
-      diary.appendChild(row);
 
-      /* Panel in panelsRoot (outside scroll-x) */
+      /* Panel — immediately after row in DOM */
       const panel=document.createElement('div');
-      panel.className='detail-wrap';
-      panel.style.pointerEvents='auto';
-      panelsRoot.appendChild(panel);
+      panel.className='dp-panel';
+
+      diary.appendChild(row);
+      diary.appendChild(panel);
 
       /* Click */
       row.addEventListener('click',()=>{
         const isSame=(_activeRow===row);
-
         closeActive();
-
         if(!isSame){
           row.classList.add('expanded');
           panel.classList.add('open');
           panel.innerHTML=buildPanel(e);
           _activeRow=row;
           _activePanel=panel;
-
-          /* Place panel below this row */
-          placePanel(panel, row);
         }
       });
-
-      idx++;
     }
   }
-
-  /* Reposition on resize */
-  window.addEventListener('resize',()=>{
-    if(_activeRow && _activePanel){
-      placePanel(_activePanel, _activeRow);
-    }
-  });
-
-  /* Reposition on horizontal scroll (scroll-x container scrolls) */
-  $('scrollX').addEventListener('scroll',()=>{
-    if(_activeRow && _activePanel){
-      placePanel(_activePanel, _activeRow);
-    }
-  },{passive:true});
 }
 
 /* ── Poll ── */
