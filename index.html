@@ -38,7 +38,7 @@
   --dp-runtime-bd:    rgba(52,211,153,0.28);
 }
 
-html{scroll-behavior:auto}   /* important — let JS control scroll */
+html{scroll-behavior:auto}
 body{
   background:var(--bg);color:var(--text-1);
   font-family:'Inter',system-ui,sans-serif;
@@ -110,41 +110,58 @@ main.vis{opacity:1}
 
 /*
  * ══════════════════════════════════════════════
- * STRUCTURE
+ * THE KEY IDEA:
  *
- * Each entry =
- *   .entry-block          ← border-bottom, full width
- *     .row-scroll         ← horizontal scroll on mobile only
- *       .row              ← grid (5 columns)
- *     .detail-wrap        ← FULL WIDTH, sibling of row-scroll
- *                            never inside scroll → never clipped
+ * .scroll-x   — ONE horizontal scroll container
+ *               wraps col-head + ALL rows
+ *               has min-width on mobile
+ *
+ * .entry-block — lives OUTSIDE .scroll-x
+ *               contains:
+ *                 .row-ref   (zero-height marker, inside .scroll-x)
+ *                 .detail-wrap (full viewport width)
+ *
+ * On mobile, .scroll-x scrolls left/right.
+ * Panels are outside it → always full width.
  * ══════════════════════════════════════════════
  */
 
-/* Column header (also scrolls horizontally on mobile) */
-.col-head-wrap{
+/* Outer wrapper — clips horizontal overflow */
+.table-outer{
+  position:relative;
+  width:100%;
+}
+
+/* Single horizontal scroll container */
+.scroll-x{
   overflow-x:auto;
-  overflow-y:hidden;
+  overflow-y:visible;       /* IMPORTANT: don't clip panels */
+  -webkit-overflow-scrolling:touch;
   scrollbar-width:thin;
   scrollbar-color:var(--border2) transparent;
-  border-bottom:1px solid var(--border2);
-  margin-top:26px;
-  -webkit-overflow-scrolling:touch;
 }
-.col-head-wrap::-webkit-scrollbar{height:4px}
-.col-head-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.col-head-wrap::-webkit-scrollbar-track{background:transparent}
+.scroll-x::-webkit-scrollbar{height:4px}
+.scroll-x::-webkit-scrollbar-track{background:transparent}
+.scroll-x::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
+/* Inner container — has the min-width */
+.scroll-inner{
+  min-width:100%;           /* default: full width */
+}
+
+/* Column header */
 .col-head{
   display:grid;
   grid-template-columns:100px 56px 1fr 90px 110px;
   align-items:center;gap:12px;
-  padding:14px 16px 10px;
+  padding:18px 16px 10px;
+  border-bottom:1px solid var(--border2);
+  margin-top:26px;
 }
 .ch{font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--text-3)}
 .ch.r{text-align:right}
 
-/* Month separator */
+/* Month separator — inside scroll-inner so it scrolls with rows */
 .month-sep{
   display:flex;align-items:center;gap:12px;
   padding:24px 16px 8px;
@@ -153,32 +170,19 @@ main.vis{opacity:1}
 .ms-line{flex:1;height:1px;background:var(--border)}
 .ms-count{font-size:15px;color:var(--text-3);white-space:nowrap}
 
-/* Entry block */
-.entry-block{
-  border-bottom:1px solid var(--border);
-}
-
-/* Row scroll wrapper */
-.row-scroll{
-  overflow-x:auto;
-  overflow-y:hidden;
-  cursor:pointer;
-  transition:background 0.14s;
-  scrollbar-width:none;            /* hide scrollbar on rows */
-  -webkit-overflow-scrolling:touch;
-}
-.row-scroll::-webkit-scrollbar{display:none}
-.row-scroll:hover,.row-scroll.expanded{background:var(--hover)}
-
-/* Row (grid) */
+/* Row — inside scroll-inner */
 .row{
   display:grid;
   grid-template-columns:100px 56px 1fr 90px 110px;
   align-items:center;gap:12px;
   min-height:56px;
   padding:12px 16px;
+  cursor:pointer;
+  transition:background 0.14s;
   animation:rowIn 0.32s ease both;
+  border-bottom:1px solid var(--border);
 }
+.row:hover,.row.expanded{background:var(--hover)}
 @keyframes rowIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 
 .r-date{font-size:13px;color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -198,7 +202,7 @@ main.vis{opacity:1}
   border-bottom:1px solid transparent;
   transition:border-color 0.15s,color 0.15s;
 }
-.row-scroll:hover .r-title,.row-scroll.expanded .r-title{
+.row:hover .r-title,.row.expanded .r-title{
   color:var(--accent);border-bottom-color:rgba(200,169,110,0.35);
 }
 .rewatch-pill{
@@ -213,13 +217,21 @@ main.vis{opacity:1}
 
 /* ══════════════════════════════════════════════
    DETAIL PANEL
-   Lives outside .row-scroll → full width, never clipped
+   Lives OUTSIDE .scroll-x in .panels-root
+   Positioned via JS to sit below its row
+   Width = full viewport width of main
 ══════════════════════════════════════════════ */
+.panels-root{
+  position:relative;
+  width:100%;
+}
+
 .detail-wrap{
   display:none;
   width:100%;
   background:var(--dp-bg);
   border-top:1px solid var(--border2);
+  border-bottom:1px solid var(--border2);
   overflow:hidden;
 }
 .detail-wrap.open{
@@ -241,39 +253,29 @@ main.vis{opacity:1}
 }
 .dp-poster img{width:100%;height:100%;object-fit:cover;display:block}
 .dp-poster-ph{font-size:28px;opacity:0.25}
-
 .dp-info{display:flex;flex-direction:column;min-width:0;width:100%}
-
-.dp-title-row{
-  display:flex;align-items:baseline;flex-wrap:wrap;
-  gap:8px;margin-bottom:12px;
-}
+.dp-title-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .dp-title{
   font-family:'Playfair Display',Georgia,serif;
   font-style:italic;font-size:18px;font-weight:700;
-  color:var(--dp-title-color);
-  line-height:1.25;word-break:break-word;
+  color:var(--dp-title-color);line-height:1.25;word-break:break-word;
 }
 .dp-year-badge{
-  font-size:11px;font-weight:700;
-  color:var(--dp-year-color);
+  font-size:11px;font-weight:700;color:var(--dp-year-color);
   background:var(--dp-year-bg);border:1px solid var(--dp-year-bd);
   padding:2px 9px;border-radius:20px;white-space:nowrap;flex-shrink:0;
 }
 .dp-runtime-badge{
-  font-size:11px;font-weight:700;
-  color:var(--dp-runtime-color);
+  font-size:11px;font-weight:700;color:var(--dp-runtime-color);
   background:var(--dp-runtime-bg);border:1px solid var(--dp-runtime-bd);
   padding:2px 9px;border-radius:20px;white-space:nowrap;flex-shrink:0;
 }
 .dp-synopsis{
-  font-size:13px;color:var(--text-2);line-height:1.78;
-  margin-bottom:16px;
+  font-size:13px;color:var(--text-2);line-height:1.78;margin-bottom:16px;
   text-align:justify;text-align-last:left;hyphens:auto;
   width:100%;overflow-wrap:break-word;word-break:break-word;
 }
 .dp-synopsis.empty{color:var(--text-3);font-style:italic;text-align:left}
-
 .dp-meta{display:flex;flex-direction:column;gap:8px}
 .dp-meta-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:12.5px}
 .dp-meta-label{
@@ -282,7 +284,6 @@ main.vis{opacity:1}
   white-space:nowrap;min-width:90px;flex-shrink:0;
 }
 .dp-meta-value{color:var(--text-1);line-height:1.5;overflow-wrap:break-word;word-break:break-word;min-width:0}
-
 .genre-list{display:flex;flex-wrap:wrap;gap:5px}
 .genre-tag{
   font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;
@@ -299,7 +300,6 @@ main.vis{opacity:1}
 @keyframes spin{to{transform:rotate(360deg)}}
 .load-txt{font-size:15px;color:var(--text-2)}
 .load-sub{font-size:12px;color:var(--text-3);margin-top:5px}
-
 .msg-box{
   margin:90px auto;max-width:420px;background:var(--bg3);
   border:1px solid var(--border2);border-radius:12px;padding:48px 32px;text-align:center;
@@ -321,10 +321,7 @@ main.vis{opacity:1}
 .t-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.5s ease infinite}
 
 /* ══════════════════════════════════════════════
-   MOBILE  ≤ 640px
-   - All 5 columns kept
-   - Row scrolls horizontally inside .row-scroll
-   - Detail panel stays full width (outside scroll)
+   MOBILE
 ══════════════════════════════════════════════ */
 @media(max-width:640px){
   header{height:54px;padding:0 14px}
@@ -334,26 +331,27 @@ main.vis{opacity:1}
   .bdot{width:6px;height:6px}
   main{padding:0 0 60px}
 
-  /* Force min-width so columns scroll horizontally */
-  .col-head,.row{
+  /* Force inner content wider so it scrolls */
+  .scroll-inner{
     min-width:560px;
-    grid-template-columns:80px 46px 1fr 70px 90px;
+  }
+
+  .col-head,.row{
+    grid-template-columns:80px 46px 1fr 70px 88px;
     gap:10px;
   }
-  .col-head{padding:12px 14px 8px}
+  .col-head{padding:12px 14px 8px;margin-top:16px}
   .month-sep{padding:18px 14px 6px}
   .row{min-height:48px;padding:10px 14px}
-
   .r-date{font-size:11.5px}
   .r-title{font-size:13.5px}
   .r-year{font-size:11.5px}
   .stars{font-size:12px}
 
-  /* Detail panel — stack on mobile, full width */
+  /* Panel stacks on mobile */
   .detail-inner{
     grid-template-columns:1fr;
-    gap:14px;
-    padding:16px 14px;
+    gap:14px;padding:16px 14px;
   }
   .dp-poster{width:110px;margin:0 auto}
   .dp-title{font-size:16px}
@@ -410,21 +408,35 @@ main.vis{opacity:1}
 </header>
 
 <main id="main">
-  <div class="col-head-wrap">
-    <div class="col-head">
-      <span class="ch">Date</span>
-      <span class="ch">Type</span>
-      <span class="ch">Title</span>
-      <span class="ch">Released</span>
-      <span class="ch r">Rating</span>
+  <div class="table-outer">
+
+    <!-- ONE scroll container for everything -->
+    <div class="scroll-x" id="scrollX">
+      <div class="scroll-inner" id="scrollInner">
+
+        <div class="col-head">
+          <span class="ch">Date</span>
+          <span class="ch">Type</span>
+          <span class="ch">Title</span>
+          <span class="ch">Released</span>
+          <span class="ch r">Rating</span>
+        </div>
+
+        <!-- Rows injected here -->
+        <div id="diary">
+          <div class="loading">
+            <div class="spin-lg"></div>
+            <div class="load-txt">Loading diary…</div>
+            <div class="load-sub">Fetching entries</div>
+          </div>
+        </div>
+
+      </div>
     </div>
-  </div>
-  <div id="diary">
-    <div class="loading">
-      <div class="spin-lg"></div>
-      <div class="load-txt">Loading diary…</div>
-      <div class="load-sub">Fetching entries</div>
-    </div>
+
+    <!-- Panels injected here — outside scroll-x, full width -->
+    <div id="panelsRoot" class="panels-root"></div>
+
   </div>
 </main>
 
@@ -500,7 +512,7 @@ function badgeErr(id){
   $('dot'+id)?.classList.add('dead');
 }
 
-/* ── Build detail panel ── */
+/* ── Build panel HTML ── */
 function buildPanel(entry){
   const d=entry.details||{};
   const isTV=entry.type==='tv';
@@ -567,10 +579,42 @@ function buildPanel(entry){
 /* ══════════════════════════════════════════════
    RENDER
 ══════════════════════════════════════════════ */
-let _openBlock=null;
+let _activeRow   = null;  // currently expanded .row el
+let _activePanel = null;  // currently open .detail-wrap el
+
+function placePanel(panel, rowEl){
+  /*
+   * Get the row's bottom edge relative to .table-outer
+   * then set panel's top to that value.
+   * This puts the panel immediately below the row
+   * regardless of scroll position.
+   */
+  const tableOuter  = rowEl.closest('.table-outer') || document.querySelector('.table-outer');
+  const outerRect   = tableOuter.getBoundingClientRect();
+  const rowRect     = rowEl.getBoundingClientRect();
+
+  const topRelative = rowRect.bottom - outerRect.top + tableOuter.scrollTop;
+
+  panel.style.position = 'absolute';
+  panel.style.top      = topRelative + 'px';
+  panel.style.left     = '0';
+  panel.style.right    = '0';
+  panel.style.zIndex   = '10';
+}
+
+function closeActive(){
+  if(_activeRow)   _activeRow.classList.remove('expanded');
+  if(_activePanel){
+    _activePanel.classList.remove('open');
+    _activePanel.innerHTML='';
+  }
+  _activeRow=null;
+  _activePanel=null;
+}
 
 function renderEntries(entries){
-  const diary=$('diary');
+  const diary      = $('diary');
+  const panelsRoot = $('panelsRoot');
 
   if(!entries.length){
     diary.innerHTML=`
@@ -590,11 +634,20 @@ function renderEntries(entries){
   }
 
   diary.innerHTML='';
+  panelsRoot.innerHTML='';
+
+  /* Make panelsRoot absolutely positioned within table-outer */
+  panelsRoot.style.position='absolute';
+  panelsRoot.style.top='0';
+  panelsRoot.style.left='0';
+  panelsRoot.style.right='0';
+  panelsRoot.style.pointerEvents='none'; /* panels get their own pointer-events */
+
+  let idx=0;
 
   for(const mk of order){
     const grp=groups.get(mk);
 
-    /* Month separator */
     const sep=document.createElement('div');
     sep.className='month-sep';
     sep.innerHTML=`
@@ -608,78 +661,70 @@ function renderEntries(entries){
       const isRew=!!e.rewatch;
       const stars=toStars(e.rating);
 
-      /* .entry-block */
-      const block=document.createElement('div');
-      block.className='entry-block';
-
-      /* .row-scroll > .row */
-      const rowScroll=document.createElement('div');
-      rowScroll.className='row-scroll';
-      rowScroll.innerHTML=`
-        <div class="row">
-          <div class="r-date">${fmtDate(e.watched_date)}</div>
-          <div class="r-type-cell">
-            <span class="type-pill ${isTV?'type-tv':'type-film'}">
-              ${isTV?'TV':'Film'}
-            </span>
-          </div>
-          <div class="r-title-wrap">
-            <div class="r-title">${esc(e.title)}</div>
-            ${isRew?`<span class="rewatch-pill">REWATCH</span>`:''}
-          </div>
-          <div class="r-year">${esc(e.year||'—')}</div>
-          <div class="r-rating">
-            ${stars
-              ?`<span class="stars" title="${e.rating}/5">${stars}</span>`
-              :`<span class="no-rating">—</span>`}
-          </div>
+      /* Row inside scroll-inner */
+      const row=document.createElement('div');
+      row.className='row';
+      row.dataset.idx=idx;
+      row.innerHTML=`
+        <div class="r-date">${fmtDate(e.watched_date)}</div>
+        <div class="r-type-cell">
+          <span class="type-pill ${isTV?'type-tv':'type-film'}">
+            ${isTV?'TV':'Film'}
+          </span>
+        </div>
+        <div class="r-title-wrap">
+          <div class="r-title">${esc(e.title)}</div>
+          ${isRew?`<span class="rewatch-pill">REWATCH</span>`:''}
+        </div>
+        <div class="r-year">${esc(e.year||'—')}</div>
+        <div class="r-rating">
+          ${stars
+            ?`<span class="stars" title="${e.rating}/5">${stars}</span>`
+            :`<span class="no-rating">—</span>`}
         </div>`;
+      diary.appendChild(row);
 
-      /* .detail-wrap (sibling of row-scroll, full width) */
+      /* Panel in panelsRoot (outside scroll-x) */
       const panel=document.createElement('div');
       panel.className='detail-wrap';
+      panel.style.pointerEvents='auto';
+      panelsRoot.appendChild(panel);
 
-      block.appendChild(rowScroll);
-      block.appendChild(panel);
-      diary.appendChild(block);
+      /* Click */
+      row.addEventListener('click',()=>{
+        const isSame=(_activeRow===row);
 
-      /*
-       * Click handler — uses click on row-scroll itself.
-       * No scrollIntoView jumping to bottom!
-       * Just open panel in place; user already sees the row.
-       */
-      rowScroll.addEventListener('click',(ev)=>{
-        /* Ignore if user is dragging to scroll horizontally */
-        if(ev.target.closest('a')) return;
+        closeActive();
 
-        const isOpen=panel.classList.contains('open');
-
-        /* Close previously open panel */
-        if(_openBlock && _openBlock!==block){
-          _openBlock.querySelector('.row-scroll')?.classList.remove('expanded');
-          const prev=_openBlock.querySelector('.detail-wrap');
-          if(prev){prev.classList.remove('open');prev.innerHTML='';}
-        }
-
-        if(isOpen){
-          rowScroll.classList.remove('expanded');
-          panel.classList.remove('open');
-          panel.innerHTML='';
-          _openBlock=null;
-        } else {
-          rowScroll.classList.add('expanded');
+        if(!isSame){
+          row.classList.add('expanded');
           panel.classList.add('open');
           panel.innerHTML=buildPanel(e);
-          _openBlock=block;
-          /*
-           * NO scrollIntoView call — panel opens right below the row.
-           * The user can scroll down naturally if needed.
-           * No jumping to page bottom anymore.
-           */
+          _activeRow=row;
+          _activePanel=panel;
+
+          /* Place panel below this row */
+          placePanel(panel, row);
         }
       });
+
+      idx++;
     }
   }
+
+  /* Reposition on resize */
+  window.addEventListener('resize',()=>{
+    if(_activeRow && _activePanel){
+      placePanel(_activePanel, _activeRow);
+    }
+  });
+
+  /* Reposition on horizontal scroll (scroll-x container scrolls) */
+  $('scrollX').addEventListener('scroll',()=>{
+    if(_activeRow && _activePanel){
+      placePanel(_activePanel, _activeRow);
+    }
+  },{passive:true});
 }
 
 /* ── Poll ── */
